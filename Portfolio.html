@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEV QUEST: Interactive Portfolio</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* --- CSS VARIABLES & RESET --- */
+        :root {
+            --bg-color: #0b0c15;
+            --surface-color: #161823;
+            --primary-neon: #00f3ff; /* Cyan */
+            --secondary-neon: #bc13fe; /* Purple */
+            --success-color: #00ff41; /* Green */
+            --danger-color: #ff2a6d; /* Red */
+            --text-main: #e0e6ed;
+            --text-dim: #94a3b8;
+            
+            --font-pixel: 'Press Start 2P', cursive;
+            --font-code: 'Roboto Mono', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-code);
+            line-height: 1.6;
+            overflow-x: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- SCANLINES --- */
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px; pointer-events: none; z-index: 1000; opacity: 0.6;
+        }
+
+        /* --- HUD --- */
+        header {
+            position: fixed; top: 0; left: 0; width: 100%; padding: 1rem 2rem;
+            background: rgba(11, 12, 21, 0.9); border-bottom: 2px solid var(--primary-neon);
+            display: flex; justify-content: space-between; align-items: center; z-index: 500;
+            backdrop-filter: blur(5px); box-shadow: 0 0 15px var(--primary-neon);
+        }
+        .hud-logo { font-family: var(--font-pixel); color: var(--primary-neon); font-size: 1rem; text-shadow: 2px 2px var(--secondary-neon); }
+        .hud-stats { display: flex; gap: 20px; font-size: 0.9rem; }
+        .xp-bar-container { width: 150px; height: 20px; background: #333; border: 2px solid #fff; position: relative; }
+        .xp-bar-fill { height: 100%; background: var(--success-color); width: 0%; transition: width 0.5s ease-out; box-shadow: 0 0 10px var(--success-color); }
+        
+        /* --- POPUPS & TOAST --- */
+        .achievement-popup {
+            position: fixed; top: 80px; right: 20px; background: var(--surface-color);
+            border: 2px solid var(--primary-neon); padding: 15px; width: 300px;
+            transform: translateX(350px); transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 600; box-shadow: 5px 5px 0px var(--secondary-neon);
+        }
+        .achievement-popup.active { transform: translateX(0); }
+        .achievement-popup h4 { font-family: var(--font-pixel); color: var(--primary-neon); margin-bottom: 5px; font-size: 0.8rem; }
+        
+        .toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--success-color); color: #000; padding: 10px 20px; font-weight: bold;
+            border: 2px solid #fff; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .toast.show { opacity: 1; }
+
+        /* --- AVATAR STYLING (NEW) --- */
+        .avatar-container {
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 2rem auto;
+            position: relative;
+            padding: 4px;
+            background: conic-gradient(from 0deg, var(--primary-neon), var(--danger-color), var(--secondary-neon), var(--primary-neon));
+            border-radius: 50%;
+            animation: spin 6s linear infinite;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
+            cursor: pointer;
+        }
+        
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid var(--bg-color); /* Creates the gap between image and spinning border */
+            background-color: #000;
+            transition: transform 0.3s;
+        }
+        
+        .avatar-container:hover .avatar-img {
+            transform: scale(1.05);
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* --- LAYOUT --- */
+        main { flex: 1; padding-top: 80px; overflow-y: auto; scroll-behavior: smooth; position: relative; }
+        section { min-height: 100vh; padding: 4rem 2rem; display: flex; flex-direction: column; justify-content: center; align-items: center; border-bottom: 1px dashed var(--text-dim); position: relative; }
+        .container { max-width: 1000px; width: 100%; }
+        .level-badge { background: var(--secondary-neon); color: #fff; padding: 5px 10px; font-family: var(--font-pixel); font-size: 0.7rem; display: inline-block; margin-bottom: 1rem; transform: rotate(-2deg); }
+        .level-title { font-family: var(--font-pixel); font-size: 2.5rem; margin-bottom: 2rem; text-shadow: 4px 4px 0px #000; text-align: center; }
+        .level-title span { color: var(--primary-neon); }
+        
+        .cta-btn {
+            background: var(--primary-neon); color: #000; border: none; padding: 1rem 2rem;
+            font-family: var(--font-pixel); font-size: 1rem; cursor: pointer; text-transform: uppercase;
+            box-shadow: 4px 4px 0px var(--secondary-neon); transition: transform 0.1s, box-shadow 0.1s; margin-top: 2rem;
+        }
+        .cta-btn:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--secondary-neon); }
+        .cta-btn:active { transform: translate(4px, 4px); box-shadow: none; }
+
+        /* --- LEVEL 2 CHALLENGE UI --- */
+        .skill-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; width: 100%; margin-bottom: 2rem; }
+        .skill-card { background: var(--surface-color); border: 2px solid var(--text-dim); padding: 20px; text-align: center; transition: all 0.3s; }
+        .skill-card:hover { border-color: var(--primary-neon); transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0, 243, 255, 0.2); }
+        .skill-icon { font-size: 2.5rem; color: var(--secondary-neon); margin-bottom: 15px; }
+
+        .challenge-box {
+            background: #000; border: 2px solid var(--primary-neon); padding: 30px; margin: 30px auto;
+            font-family: var(--font-code); color: var(--success-color); width: 100%; max-width: 800px;
+            text-align: center;
+            position: relative;
+        }
+        
+        #quiz-display-area {
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .terminal-input {
+            background: #111; border: 2px solid var(--text-dim); color: #fff; padding: 10px;
+            width: 300px; font-family: var(--font-code); font-size: 1.1rem; margin-top: 15px; text-align: center;
+        }
+        .terminal-input:focus { border-color: var(--primary-neon); outline: none; }
+        .terminal-input.error { border-color: var(--danger-color); color: var(--danger-color); }
+
+        .cmd-btn { background: var(--text-dim); color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; margin-top: 15px; font-family: var(--font-pixel); font-size: 0.8rem; }
+        .cmd-btn:hover { background: #fff; }
+
+        .feedback-msg { margin-top: 15px; font-weight: bold; min-height: 24px; }
+        .feedback-error { color: var(--danger-color); }
+        .feedback-success { color: var(--success-color); }
+
+        /* --- OTHER SECTIONS --- */
+        .boss-arena { display: flex; flex-direction: column; gap: 2rem; }
+        .boss-card { background: var(--surface-color); border: 2px solid var(--danger-color); display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; box-shadow: 0 0 20px rgba(255, 42, 109, 0.2); }
+        .boss-visual { background: #000; position: relative; min-height: 250px; }
+        .boss-visual img { width: 100%; height: 100%; object-fit: cover; opacity: 0.7; }
+        .boss-stats { padding: 2rem; display: flex; flex-direction: column; justify-content: center; }
+        .hp-bar { width: 100%; height: 15px; background: #333; margin: 15px 0; }
+        .hp-fill { height: 100%; background: var(--danger-color); width: 0%; transition: width 1.5s ease-in-out; }
+        .tech-stack { display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap; }
+        .tech-tag { background: rgba(255, 255, 255, 0.1); padding: 4px 8px; font-size: 0.8rem; border: 1px solid var(--text-dim); }
+
+        .dashboard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 800px; margin: 0 auto; }
+        .dash-item { background: rgba(0, 243, 255, 0.05); border: 1px solid var(--primary-neon); padding: 15px; text-align: center; }
+        .dash-value { font-size: 2rem; font-weight: bold; color: var(--primary-neon); }
+
+        .final-boss-form { background: var(--surface-color); padding: 2rem; border: 4px solid var(--text-main); box-shadow: 10px 10px 0px var(--primary-neon); max-width: 600px; margin: 0 auto; }
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-family: var(--font-pixel); font-size: 0.8rem; }
+        .form-control { width: 100%; padding: 10px; background: #000; border: 2px solid var(--text-dim); color: #fff; font-family: var(--font-code); }
+        .form-control:focus { border-color: var(--primary-neon); outline: none; }
+
+        @media (max-width: 768px) {
+            .boss-card { grid-template-columns: 1fr; }
+            .hud-stats { display: none; }
+            .level-title { font-size: 1.5rem; }
+            .terminal-input { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+
+    <!-- HUD -->
+    <header>
+        <div class="hud-logo"><i class="fas fa-gamepad"></i> DEV.QUEST</div>
+        <div class="hud-stats">
+            <div class="stat-item">
+                <i class="fas fa-star" style="color: gold;"></i>
+                <span id="level-display">Lvl 01</span>
+            </div>
+            <div class="stat-item">
+                <span>XP:</span>
+                <div class="xp-bar-container"><div class="xp-bar-fill" id="xp-bar"></div></div>
+            </div>
+            <div class="stat-item">
+                <i class="fas fa-trophy" style="color: var(--primary-neon);"></i>
+                <span id="achievements-count">0</span>
+            </div>
+        </div>
+        <div>
+            <button class="cmd-btn" onclick="toggleSound()" style="border-radius: 50%; width: 40px; height: 40px;">
+                <i class="fas fa-volume-up" id="sound-icon"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="achievement-popup" id="achievement-popup">
+        <h4>ACHIEVEMENT UNLOCKED!</h4>
+        <p id="achievement-text">Badge Name</p>
+    </div>
+
+    <main id="game-container">
+        
+        <!-- LEVEL 1: HERO -->
+        <section id="level-hero" data-level="1">
+            <div class="container" style="text-align: center;">
+                <div class="level-badge">STAGE 1</div>
+                
+                <!-- USER PHOTO INSERTED HERE -->
+                <div class="avatar-container">
+                    <img src="arman.jpg" alt="Developer Avatar" class="avatar-img">
+                </div>
+                <!-- END USER PHOTO -->
+
+                <h1 class="level-title" style="font-size: 3rem;">ARMAN <span>DEV</span></h1>
+                <p style="color: var(--text-dim); margin-bottom: 2rem;">Full Stack Architect. Bug Destroyer. <br>Welcome, champs. I craft digital experiences using clean code and modern architecture. 
+                    Are you ready to explore my skill tree?
+.</p>
+                <button class="cta-btn" onclick="startGame()">START GAME</button>
+            </div>
+        </section>
+
+        <!-- LEVEL 2: ASSESSMENT -->
+        <section id="level-core" data-level="2">
+            <div class="container">
+                <div class="level-badge">STAGE 2</div>
+                <h2 class="level-title">SKILL <span>ASSESSMENT</span></h2>
+                <p style="text-align: center; margin-bottom: 2rem;">Answer correctly to charge your XP bar.</p>
+                
+                <div class="skill-grid">
+                    <div class="skill-card"><i class="fab fa-html5 skill-icon" style="color: #e34c26;"></i><h3>HTML5</h3></div>
+                    <div class="skill-card"><i class="fab fa-css3-alt skill-icon" style="color: #264de4;"></i><h3>CSS3</h3></div>
+                    <div class="skill-card"><i class="fab fa-js skill-icon" style="color: #f0db4f;"></i><h3>JavaScript</h3></div>
+                </div>
+
+                <!-- DYNAMIC CHALLENGE CONTAINER -->
+                <div class="challenge-box">
+                    <div id="quiz-display-area">
+                        <!-- JS renders questions here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- LEVEL 3: JS LOGIC -->
+        <section id="level-logic" data-level="3">
+            <div class="container">
+                <div class="level-badge">STAGE 3</div>
+                <h2 class="level-title">ADVANCED <span>LOGIC</span></h2>
+                <div class="boss-card" style="margin-top: 2rem;">
+                    <div class="boss-visual"><img src="https://picsum.photos/seed/code/600/400.jpg" alt="Code"></div>
+                    <div class="boss-stats">
+                        <h4>SKILL TREE UNLOCKED</h4>
+                        <p>Frameworks: React, Vue, Angular</p>
+                        <p>State Management: Redux, Context API</p>
+                        <div class="tech-stack">
+                            <span class="tech-tag">TypeScript</span>
+                            <span class="tech-tag">Next.js</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- LEVEL 4: BACKEND & BOSS -->
+        <section id="level-backend" data-level="4">
+            <div class="container">
+                <div class="level-badge">STAGE 4</div>
+                <h2 class="level-title">BOSS <span>BATTLE</span></h2>
+                
+                <div class="boss-arena">
+                    <h3 style="color: var(--danger-color); font-family: var(--font-pixel); text-align: center;">ENEMY: LEGACY MONOLITH</h3>
+                    <div class="boss-card" id="boss-1">
+                        <div class="boss-visual"><img src="https://picsum.photos/seed/server/600/400.jpg" alt="Server"></div>
+                        <div class="boss-stats">
+                            <h4>OBJECTIVE: Refactor for Scalability</h4>
+                            <p>Tools: Node.js, Docker, PostgreSQL</p>
+                            <div class="hp-bar"><div class="hp-fill" data-width="100%"></div></div>
+                            <small style="color:var(--text-dim)">Project Load Reduced: 100%</small>
+                            <button class="cta-btn" style="font-size: 0.8rem; padding: 0.5rem 1rem;" onclick="viewProject('Legacy Refactor')">INSPECT CODE</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- LEVEL 5: STATS -->
+        <section id="level-stats" data-level="5">
+            <div class="container">
+                <div class="level-badge">STAGE 5</div>
+                <h2 class="level-title">PLAYER <span>STATS</span></h2>
+                <div class="dashboard-grid">
+                    <div class="dash-item"><div class="dash-value" data-target="42">0</div><div>Projects</div></div>
+                    <div class="dash-item"><div class="dash-value" data-target="850">0</div><div>Commits</div></div>
+                    <div class="dash-item"><div class="dash-value" data-target="12">0</div><div>Certs</div></div>
+                    <div class="dash-item"><div class="dash-value" data-target="99">0</div><div>Bugs Fixed</div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FINAL BOSS -->
+        <section id="level-final" data-level="6">
+            <div class="container">
+                <div class="level-badge" style="background: var(--danger-color);">FINAL BOSS</div>
+                <h2 class="level-title" style="color: var(--danger-color);">HIRE <span>ME</span></h2>
+                <div class="final-boss-form">
+                    <form onsubmit="handleContact(event)">
+                        <div class="form-group"><label>PLAYER NAME</label><input type="text" class="form-control" required></div>
+                        <div class="form-group"><label>EMAIL</label><input type="email" class="form-control" required></div>
+                        <div class="form-group"><label>MISSION DETAILS</label><textarea class="form-control" rows="4" required></textarea></div>
+                        <button type="submit" class="cta-btn" style="width: 100%;">SEND INVITE</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+    </main>
+    <div id="toast" class="toast">Action Completed!</div>
+
+    <script>
+        /* --- GAME STATE --- */
+        const gameState = {
+            level: 1, xp: 0, xpToNextLevel: 100, achievements: [], soundOn: true
+        };
+        
+        const achievementsList = [
+            { id: 'novice', name: 'Code Novice', condition: () => gameState.level > 1 },
+            { id: 'scholar', name: 'Quiz Master', condition: () => gameState.xp >= 50 }, 
+            { id: 'slayer', name: 'Boss Slayer', condition: () => gameState.level > 4 }
+        ];
+
+        /* --- LEVEL 2: SEQUENTIAL QUIZ LOGIC --- */
+        const quizData = [
+            { 
+                id: 1, 
+                q: "1. Which HTML5 tag is used to define the main navigation links?", 
+                a: ["nav", "<nav>", "<nav>"],
+                xp: 20
+            },
+            { 
+                id: 2, 
+                q: "2. In CSS, which property is used to change the text color?", 
+                a: ["color", "text-color", "colour"],
+                xp: 20
+            },
+            { 
+                id: 3, 
+                q: "3. What keyword is used to declare a constant variable in JavaScript?", 
+                a: ["const"],
+                xp: 20
+            },
+            { 
+                id: 4, 
+                q: "4. What is the output of: typeof [] in JavaScript?", 
+                a: ["object"],
+                xp: 20
+            },
+            { 
+                id: 5, 
+                q: "5. Which HTTP method is typically used to update existing data?", 
+                a: ["put", "patch"],
+                xp: 20
+            }
+        ];
+
+        let currentQuestionIndex = 0;
+
+        function initLevel2Quiz() {
+            renderCurrentQuestion();
+        }
+
+        function renderCurrentQuestion() {
+            const container = document.getElementById('quiz-display-area');
+            
+            if (currentQuestionIndex >= quizData.length) {
+                container.innerHTML = `
+                    <h3 style="color: var(--success-color)">ASSESSMENT COMPLETE!</h3>
+                    <p>All systems operational. Proceeding to next level.</p>
+                    <button class="cta-btn" onclick="scrollToNext()">CONTINUE</button>
+                `;
+                unlockAchievement({ id: 'perfect_score', name: 'Quiz Master' });
+                return;
+            }
+
+            const data = quizData[currentQuestionIndex];
+            
+            container.innerHTML = `
+                <p style="margin-bottom: 20px;">${data.q}</p>
+                <input type="text" class="terminal-input" id="quiz-input" placeholder="Type answer here..." autocomplete="off">
+                <div>
+                    <button class="cmd-btn" onclick="checkQuizAnswer()">RUN CODE</button>
+                </div>
+                <div class="feedback-msg" id="quiz-feedback"></div>
+            `;
+            
+            setTimeout(() => document.getElementById('quiz-input').focus(), 100);
+            
+            document.getElementById('quiz-input').addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') checkQuizAnswer();
+            });
+        }
+
+        function checkQuizAnswer() {
+            const input = document.getElementById('quiz-input');
+            const feedback = document.getElementById('quiz-feedback');
+            const val = input.value.trim().toLowerCase();
+            const currentData = quizData[currentQuestionIndex];
+
+            if (currentData.a.includes(val)) {
+                playSound('success');
+                feedback.innerHTML = "<span class='feedback-success'>CORRECT! +XP</span>";
+                input.disabled = true;
+                input.style.borderColor = "var(--success-color)";
+                input.style.color = "var(--success-color)";
+                
+                addXP(currentData.xp);
+                
+                setTimeout(() => {
+                    currentQuestionIndex++;
+                    renderCurrentQuestion();
+                }, 1000);
+
+            } else {
+                playSound('error');
+                const answerString = currentData.a[0]; 
+                feedback.innerHTML = `<span class='feedback-error'>ERROR. Correct answer is: <strong>${answerString}</strong></span>`;
+                input.classList.add('error');
+                
+                input.style.transform = "translateX(5px)";
+                setTimeout(() => input.style.transform = "translateX(0)", 100);
+                setTimeout(() => input.style.transform = "translateX(-5px)", 200);
+                setTimeout(() => input.style.transform = "translateX(0)", 300);
+            }
+        }
+
+        function scrollToNext() {
+            document.getElementById('level-logic').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        /* --- GENERAL GAME LOGIC --- */
+        document.addEventListener('DOMContentLoaded', () => {
+            setupScrollObserver();
+            updateHUD();
+        });
+
+        function startGame() {
+            document.getElementById('level-core').scrollIntoView({ behavior: 'smooth' });
+            playSound('start');
+            setTimeout(initLevel2Quiz, 1000);
+        }
+
+        function addXP(amount) {
+            gameState.xp += amount;
+            if (gameState.xp > 100) gameState.xp = 100;
+            updateHUD();
+            checkAchievements();
+        }
+
+        function updateHUD() {
+            document.getElementById('xp-bar').style.width = `${gameState.xp}%`;
+        }
+
+        function levelUp(newLevel) {
+            if (newLevel <= gameState.level) return;
+            gameState.level = newLevel;
+            document.getElementById('level-display').innerText = `Lvl 0${newLevel}`;
+            playSound('levelup');
+            checkAchievements();
+        }
+
+        function setupScrollObserver() {
+            const sections = document.querySelectorAll('section');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const lvl = parseInt(entry.target.getAttribute('data-level'));
+                        levelUp(lvl);
+                        if(lvl === 4) animateBossHP();
+                        if(lvl === 5) animateNumbers();
+                    }
+                });
+            }, { threshold: 0.5 });
+            sections.forEach(s => observer.observe(s));
+        }
+
+        function checkAchievements() {
+            achievementsList.forEach(ach => {
+                if (!gameState.achievements.includes(ach.id) && ach.condition()) {
+                    gameState.achievements.push(ach.id);
+                    const popup = document.getElementById('achievement-popup');
+                    document.getElementById('achievement-text').innerText = ach.name;
+                    popup.classList.add('active');
+                    document.getElementById('achievements-count').innerText = gameState.achievements.length;
+                    playSound('achievement');
+                    setTimeout(() => popup.classList.remove('active'), 3000);
+                }
+            });
+        }
+
+        function unlockAchievement(ach) {
+             if (!gameState.achievements.includes(ach.id)) {
+                gameState.achievements.push(ach.id);
+                const popup = document.getElementById('achievement-popup');
+                document.getElementById('achievement-text').innerText = ach.name;
+                popup.classList.add('active');
+                document.getElementById('achievements-count').innerText = gameState.achievements.length;
+                playSound('achievement');
+                setTimeout(() => popup.classList.remove('active'), 3000);
+            }
+        }
+
+        /* --- ANIMATIONS & UTILS --- */
+        function animateBossHP() {
+            document.querySelectorAll('.hp-fill').forEach(bar => {
+                bar.style.width = bar.getAttribute('data-width');
+            });
+        }
+        function animateNumbers() {
+            document.querySelectorAll('.dash-value').forEach(num => {
+                const target = +num.getAttribute('data-target');
+                const inc = target / 50;
+                let curr = 0;
+                const t = setInterval(() => {
+                    curr += inc;
+                    if(curr >= target) { num.innerText = target; clearInterval(t); }
+                    else { num.innerText = Math.ceil(curr); }
+                }, 30);
+            });
+        }
+        function viewProject(name) { showToast(`Loading ${name} Repo...`); }
+        function handleContact(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.innerText = "SENDING...";
+            setTimeout(() => {
+                btn.innerText = "SENT!"; btn.style.background = "var(--success-color)";
+                showToast('Message Sent!');
+                e.target.reset();
+            }, 1500);
+        }
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg; t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2000);
+        }
+        function toggleSound() {
+            gameState.soundOn = !gameState.soundOn;
+            document.getElementById('sound-icon').className = gameState.soundOn ? "fas fa-volume-up" : "fas fa-volume-mute";
+        }
+        function playSound(type) {
+            if (!gameState.soundOn) return;
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator(); const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            const now = ctx.currentTime;
+            if (type === 'start') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(220, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now); osc.stop(now + 0.5);
+            } else if (type === 'success') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'error') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'achievement') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.setValueAtTime(554, now + 0.1);
+                osc.frequency.setValueAtTime(659, now + 0.2);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.6);
+                osc.start(now); osc.stop(now + 0.6);
+            } else if (type === 'levelup') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.linearRampToValueAtTime(880, now + 0.3);
+                gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now + 0.5);
+                osc.start(now); osc.stop(now + 0.5);
+            }
+        }
+    </script>
+</body>
+</html>
